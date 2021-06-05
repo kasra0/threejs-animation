@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>animation</title>
+		<style>
+			body { margin: 0; }
+		</style>
+	</head>
+	<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js" integrity="sha512-LF8ZB1iTwi4Qvkm4pekHG4a437Y9Af5ZuwbnW4GTbAWQeR2E4KW8WF+xH8b9psevV7wIlDMx1MH9YfPqgKhA/Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+		<script>  
+     let gui;
+     let renderer,scene,camera;
+     let loader,clock,mixer,clip,action,character;
+     let dashboard
+
+     function init(){
+      gui               = new dat.GUI() 
+			scene             = new THREE.Scene();
+      scene.background  = new THREE.Color(0x333333)
+      clock             = new THREE.Clock();
+      loader            = new THREE.GLTFLoader();     
+			camera            = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+			renderer          = new THREE.WebGLRenderer();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			document.body.appendChild( renderer.domElement );
+      scene.add( new THREE.HemisphereLight( 0xffffff, 0xffffff) );
+      scene.add( new THREE.DirectionalLight( 0xffffff ) );
+      scene.add( new THREE.AxesHelper(10))
+      scene.add( new THREE.GridHelper(10,10))
+			camera.position.x = 5;
+      camera.position.y = 5;
+      camera.position.z = 5;
+      camera.lookAt(0,0,0)
+      loader.load( 'running.glb', function ( glf ) {
+        character = glf.scene
+        scene.add( character );
+        mixer = new THREE.AnimationMixer( character);
+        // mixer.addEventListener( 'finished', ()=>{} );
+        clip   =  glf.animations[ 0 ]
+        action = mixer.clipAction(clip);
+        action.loop = THREE.LoopOnce;
+
+        /* GUI section */
+        const obj = {play : ()=>{ action.isScheduled()? action.reset() : action.play() } }
+        gui.add(obj,'play')
+        gui.add(action,'time',0,1,0.05).listen()
+        gui.add(action,'timeScale',0,1,0.05).listen()
+        gui.add(action,'clampWhenFinished')
+        window.action = action
+        const positionFolder = gui.addFolder("position")
+        positionFolder.open()
+        positionFolder.add(character.position,'x',-10,10,0.1).listen()      
+        positionFolder.add(character.position,'z',-10,10,0.1).listen()
+        const quaternionFolder = gui.addFolder("quaternion")
+        quaternionFolder.open()
+        quaternionFolder.add(character.quaternion,'x',-1,1,0.1).listen()      
+        quaternionFolder.add(character.quaternion,'y',-1,1,0.1).listen()   
+        quaternionFolder.add(character.quaternion,'z',-1,1,0.1).listen()
+        quaternionFolder.add(character.quaternion,'w',-10,10,0.1).listen()  
+
+        createDashBoard()
+     } );
+     }
+
+     const animate = function () {
+			requestAnimationFrame( animate );
+			renderer.render( scene, camera );
+      mixer?.update( clock.getDelta())
+	   };
+
+      init()
+			animate();
+
+     /*Dashboard section*/
+     function displayTrackValues(dashboard,trackName){
+      const headers = ["T","X","Y","Z","W"]
+      const {times,values}   =  clip.tracks.filter(x=>x.name===trackName)[0]
+      const n                =  values.length / times.length
+      const headerRow        =  document.createElement('tr');
+      [...Array(n+1).keys()].map((x,i)=>{
+        const el           = document.createElement('th');
+        el.innerText       = headers[i];
+        el.style.color     = "#00ff00"
+        return el
+        })
+      .map(x=>headerRow.appendChild(x))
+      dashboard.appendChild(headerRow)
+
+
+       times.map((time,index)=>{
+        const row               = document.createElement('tr')
+        const cell              = document.createElement('td')    
+        cell.innerText          = time.toFixed(3)
+        cell.style.color        = "#ff00ff"
+        row.appendChild(cell)     
+        const offset = (index*n) 
+        const vs     = []
+        vs.push(values[offset],values[offset + 1],values[offset + 2])
+        if(n===4) vs.push(values[offset + 3])          
+        vs.map((v)=>{
+         const cell              = document.createElement('td')     
+         cell.innerText          =  v.toFixed(3)
+         cell.style.color        = "#cccccc"
+         row.appendChild(cell)
+        })
+        dashboard.appendChild(row)
+       })
+     }     
+     function createDashBoard(){
+       dashboard = document.createElement('table')
+       dashboard.id ='dashboard'  
+       document.body.appendChild(dashboard)
+       dashboard.style.position        = "absolute";
+       dashboard.style.top             = "0px";
+       dashboard.style.left            = "0px";
+       dashboard.style.width           = "400px";   
+       const tracksFolder              = gui.addFolder("tracks")
+       tracksFolder.open()
+       const tracksName   =  clip.tracks?.map(x=>x.name)
+       const trackName =  tracksName[0]
+       tracksFolder.add({trackName},"trackName",tracksName).onChange((trackName)=>{
+        document.querySelector("#dashboard").innerHTML = "";
+        displayTrackValues(dashboard,trackName)
+       })
+       displayTrackValues(dashboard,trackName)
+      }
+
+		</script>
+	</body>
+</html>
